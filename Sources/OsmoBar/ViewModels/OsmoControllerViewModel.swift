@@ -16,11 +16,17 @@ public final class OsmoControllerViewModel: ObservableObject {
     @Published public private(set) var bleState: BLEConnectionState = .disconnected
     @Published public private(set) var udpState: UDPDatalinkState = .disconnected
 
-    // MARK: - Telemetry
+    // MARK: - Telemetry & Audio Meter
     @Published public private(set) var attitude: GimbalAttitude?
     @Published public private(set) var battery: BatteryStatus?
     @Published public private(set) var readback = CameraReadbackState()
     @Published public private(set) var wifiSSID: String = ""
+
+    @Published public var audioMeterEnabled: Bool = true
+    @Published public private(set) var audioMeterState: AudioMeterState = .noDevice
+    @Published public private(set) var audioLevel: Double = 0
+    @Published public private(set) var audioPeak: Double = 0
+    @Published public private(set) var audioDecibels: Float = -60
 
     // MARK: - Gimbal Controls State
     @Published public var gimbalSpeedScale: Double = 0.65
@@ -68,6 +74,7 @@ public final class OsmoControllerViewModel: ObservableObject {
 
     // MARK: - Transports & Shared Capture
     public let cameraSession = CameraSessionManager()
+    private let audioMonitor = AudioLevelMonitor()
     private let uvc = UVCController()
     private let ble = Pocket3BLETransport()
     private let udp = Pocket3UDPTransport()
@@ -82,6 +89,7 @@ public final class OsmoControllerViewModel: ObservableObject {
         presets = GimbalPresetStore.load()
         configureTransports()
         configureFaceTracking()
+        configureAudioMonitor()
         registerDeviceNotifications()
         refreshCameras(autoConnect: true)
     }
@@ -207,6 +215,17 @@ public final class OsmoControllerViewModel: ObservableObject {
 
     public func requestPocketWiFiCredentials() {
         ble.requestWiFiCredentials()
+    }
+
+    // MARK: - Audio Meter Controls
+
+    public func toggleAudioMeter() {
+        audioMeterEnabled.toggle()
+        audioMonitor.setEnabled(audioMeterEnabled)
+    }
+
+    public func requestMicrophonePermission() {
+        audioMonitor.requestPermissionAndStart()
     }
 
     public var isFlippedUSB: Bool {
@@ -749,13 +768,32 @@ public final class OsmoControllerViewModel: ObservableObject {
         }
     }
 
+    private func configureAudioMonitor() {
+        audioMonitor.onUpdate = { [weak self] level, peak, db, state in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.audioLevel = level
+                self.audioPeak = peak
+                self.audioDecibels = db
+                self.audioMeterState = state
+            }
+        }
+        audioMonitor.refresh()
+    }
+
     private func registerDeviceNotifications() {
         let nc = NotificationCenter.default
         let c1 = nc.addObserver(forName: .AVCaptureDeviceWasConnected, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refreshCameras(autoConnect: true) }
+            Task { @MainActor in
+                self?.refreshCameras(autoConnect: true)
+                self?.audioMonitor.refresh()
+            }
         }
         let c2 = nc.addObserver(forName: .AVCaptureDeviceWasDisconnected, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refreshCameras(autoConnect: true) }
+            Task { @MainActor in
+                self?.refreshCameras(autoConnect: true)
+                self?.audioMonitor.refresh()
+            }
         }
         deviceObservers = [c1, c2]
     }

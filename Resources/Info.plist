@@ -5,15 +5,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>OsmoControl</string>
+    <string>OsmoBar</string>
     <key>CFBundleIdentifier</key>
-    <string>com.osmocontrol.app</string>
+    <string>com.osmobar.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>OsmoControl</string>
+    <string>OsmoBar</string>
     <key>CFBundleDisplayName</key>
-    <string>Osmo Control</string>
+    <string>OsmoBar</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -29,10 +29,12 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>Osmo Control connects to your DJI Osmo Pocket 3 over Bluetooth Low Energy to read battery and gimbal telemetry and send DUML control commands.</string>
+    <string>OsmoBar connects to your DJI Osmo Pocket 3 over Bluetooth Low Energy to read battery and gimbal telemetry and send DUML control commands.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Osmo Control accesses your connected DJI Osmo Pocket 3 webcam to discover UVC controls and optionally display a live framing preview.</string>
+    <string>OsmoBar accesses your connected DJI Osmo Pocket 3 webcam to discover UVC controls, display a live framing preview, and run Face Follow.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>OsmoBar monitors the DJI Osmo Pocket 3 USB audio input to display a live audio level meter.</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Osmo Control can optionally connect to your DJI Osmo Pocket 3 direct datalink (192.168.2.1) for full Pro camera and gimbal DUML controls.</string>
+    <string>OsmoBar can optionally connect to your DJI Osmo Pocket 3 direct datalink (192.168.2.1) for full Pro camera and gimbal DUML controls.</string>
 </dict>
 </plist>

@@ -34,6 +34,17 @@ struct MenuBarPopoverView: View {
                 .frame(height: 174)
             }
 
+            // Live Osmo Pocket 3 USB audio level meter
+            AudioLevelBarView(
+                state: vm.audioMeterState,
+                level: vm.audioLevel,
+                peak: vm.audioPeak,
+                decibels: vm.audioDecibels,
+                isEnabled: vm.audioMeterEnabled,
+                onToggleEnabled: { vm.toggleAudioMeter() },
+                onRequestPermission: { vm.requestMicrophonePermission() }
+            )
+
             if case .awaitingApproval = vm.bleState {
                 HStack(spacing: 6) {
                     Image(systemName: "hand.tap.fill")
@@ -220,7 +231,7 @@ struct MenuBarPopoverView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .help("Quit Osmo Control")
+                .help("Quit OsmoBar")
             }
         }
         .padding(14)

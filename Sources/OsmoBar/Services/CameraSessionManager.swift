@@ -11,8 +11,8 @@ public final class CameraSessionManager: NSObject, @unchecked Sendable {
 
     public var onFaceDetected: (@Sendable (CGRect?) -> Void)?
 
-    private let sessionQueue = DispatchQueue(label: "com.osmocontrol.camera.session")
-    private let visionQueue = DispatchQueue(label: "com.osmocontrol.camera.vision", qos: .userInitiated)
+    private let sessionQueue = DispatchQueue(label: "com.osmobar.camera.session")
+    private let visionQueue = DispatchQueue(label: "com.osmobar.camera.vision", qos: .userInitiated)
     private let stateLock = NSLock()
 
     private let videoOutput = AVCaptureVideoDataOutput()

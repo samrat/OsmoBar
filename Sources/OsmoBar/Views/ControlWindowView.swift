@@ -94,6 +94,19 @@ struct ControlWindowView: View {
                 .padding(.top, 12)
             }
 
+            // Live Osmo Pocket 3 USB audio level meter
+            AudioLevelBarView(
+                state: vm.audioMeterState,
+                level: vm.audioLevel,
+                peak: vm.audioPeak,
+                decibels: vm.audioDecibels,
+                isEnabled: vm.audioMeterEnabled,
+                onToggleEnabled: { vm.toggleAudioMeter() },
+                onRequestPermission: { vm.requestMicrophonePermission() }
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
             // Tab selector
             Picker("", selection: $selectedTab) {
                 ForEach(ControlTab.allCases) { tab in

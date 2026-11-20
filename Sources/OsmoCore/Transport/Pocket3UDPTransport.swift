@@ -36,7 +36,7 @@ public final class Pocket3UDPTransport: @unchecked Sendable {
     public var onLog: (@Sendable (String) -> Void)?
 
     private let lock = NSLock()
-    private let networkQueue = DispatchQueue(label: "com.osmocontrol.udp")
+    private let networkQueue = DispatchQueue(label: "com.osmobar.udp")
 
     private var connection: NWConnection?
     private var incoming: [Data] = []

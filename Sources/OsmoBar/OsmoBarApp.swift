@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct OsmoControlApp: App {
+struct OsmoBarApp: App {
     @StateObject private var viewModel = OsmoControllerViewModel()
 
     var body: some Scene {
@@ -18,7 +18,7 @@ struct OsmoControlApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Osmo Control", id: "control-window") {
+        Window("OsmoBar", id: "control-window") {
             ControlWindowView(vm: viewModel)
         }
         .windowResizability(.contentMinSize)

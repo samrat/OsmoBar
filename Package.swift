@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "OsmoControl",
+    name: "OsmoBar",
     platforms: [
         .macOS(.v14)
     ],
     products: [
         .library(name: "OsmoCore", targets: ["OsmoCore"]),
-        .executable(name: "OsmoControl", targets: ["OsmoControl"])
+        .executable(name: "OsmoBar", targets: ["OsmoBar"])
     ],
     targets: [
         .target(
@@ -22,9 +22,9 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "OsmoControl",
+            name: "OsmoBar",
             dependencies: ["OsmoCore"],
-            path: "Sources/OsmoControl",
+            path: "Sources/OsmoBar",
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("AVFoundation"),

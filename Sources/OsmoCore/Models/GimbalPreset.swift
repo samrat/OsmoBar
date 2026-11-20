@@ -40,10 +40,13 @@ public struct GimbalPreset: Identifiable, Codable, Equatable, Sendable {
 }
 
 public enum GimbalPresetStore {
-    private static let storageKey = "com.osmocontrol.gimbalPresets.v1"
+    private static let storageKey = "com.osmobar.gimbalPresets.v1"
+    private static let legacyStorageKey = "com.osmocontrol.gimbalPresets.v1"
 
     public static func load() -> [GimbalPreset] {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
+        let data = UserDefaults.standard.data(forKey: storageKey)
+            ?? UserDefaults.standard.data(forKey: legacyStorageKey)
+        guard let data,
               let decoded = try? JSONDecoder().decode([GimbalPreset].self, from: data),
               !decoded.isEmpty else {
             return GimbalPreset.defaultPresets
