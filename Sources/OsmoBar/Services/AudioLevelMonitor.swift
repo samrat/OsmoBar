@@ -23,6 +23,7 @@ public final class AudioLevelMonitor: NSObject, @unchecked Sendable {
     private var activeDeviceID: String?
     private var activeDeviceName: String = ""
     private var enabled = true
+    private var permissionRequested = false
     private var smoothedLevel: Double = 0
     private var peakHold: Double = 0
     private var lastPeakTime: TimeInterval = 0
@@ -46,6 +47,11 @@ public final class AudioLevelMonitor: NSObject, @unchecked Sendable {
         case .authorized:
             refresh()
         case .notDetermined:
+            lock.lock()
+            let alreadyRequested = permissionRequested
+            permissionRequested = true
+            lock.unlock()
+            guard !alreadyRequested else { return }
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
                 self?.refresh()
             }

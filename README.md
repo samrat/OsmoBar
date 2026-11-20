@@ -2,6 +2,10 @@
 
 Native SwiftUI macOS menu bar app + floating Studio Window for controlling a **DJI Osmo Pocket 3** while using it in **Webcam (UVC)** mode.
 
+<p align="center">
+  <img src="docs/screenshot.jpg" width="380" alt="OsmoBar macOS menu bar popover" />
+</p>
+
 ## Features
 
 - **Menu Bar Popover & Pop-out Studio Window**: Quick controls right in your macOS menu bar plus a resizable, optional "Always on Top" Studio Window.

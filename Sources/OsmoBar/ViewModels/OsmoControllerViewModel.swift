@@ -778,7 +778,7 @@ public final class OsmoControllerViewModel: ObservableObject {
                 self.audioMeterState = state
             }
         }
-        audioMonitor.refresh()
+        audioMonitor.requestPermissionAndStart()
     }
 
     private func registerDeviceNotifications() {
