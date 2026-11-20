@@ -160,4 +160,31 @@ final class OsmoCoreTests: XCTestCase {
         XCTAssertEqual(parsed.vendorID, 0x2CA3)
         XCTAssertEqual(parsed.productID, 0x0023)
     }
+
+    // MARK: - Stereo L/R DJI Mic Detection
+
+    func testStereoMicClassifierDetectsMonoDJIMicAndBuiltInStereoMic() {
+        var classifier = StereoMicSourceClassifier(confirmFramesRequired: 3)
+
+        // Silence must not trigger detection
+        let silence = [Float](repeating: 0.0001, count: 256)
+        for _ in 0..<5 {
+            XCTAssertNil(classifier.ingest(left: silence, right: silence))
+        }
+        XCTAssertEqual(classifier.detectedSource, .unknown)
+
+        // Identical L/R audible signal -> mono DJI Mic transmitter duplicated over USB stereo
+        let monoWave = (0..<256).map { Float(sin(Double($0) * 0.15) * 0.25) }
+        for _ in 0..<3 {
+            _ = classifier.ingest(left: monoWave, right: monoWave)
+        }
+        XCTAssertEqual(classifier.detectedSource, .djiMicWireless)
+
+        // Distinct L/R stereo signal (phase/amplitude offset) -> built-in Pocket 3 stereo mics
+        let stereoRight = (0..<256).map { Float(sin(Double($0) * 0.15 + 0.65) * 0.22) }
+        for _ in 0..<3 {
+            _ = classifier.ingest(left: monoWave, right: stereoRight)
+        }
+        XCTAssertEqual(classifier.detectedSource, .cameraMic)
+    }
 }

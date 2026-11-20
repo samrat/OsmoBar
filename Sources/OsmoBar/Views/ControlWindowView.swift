@@ -94,9 +94,10 @@ struct ControlWindowView: View {
                 .padding(.top, 12)
             }
 
-            // Live Osmo Pocket 3 USB audio level meter
+            // Live Osmo Pocket 3 USB audio level meter + DJI Mic detection
             AudioLevelBarView(
                 state: vm.audioMeterState,
+                micSource: vm.detectedMicSource,
                 level: vm.audioLevel,
                 peak: vm.audioPeak,
                 decibels: vm.audioDecibels,

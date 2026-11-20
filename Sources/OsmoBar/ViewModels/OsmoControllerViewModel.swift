@@ -24,6 +24,7 @@ public final class OsmoControllerViewModel: ObservableObject {
 
     @Published public var audioMeterEnabled: Bool = true
     @Published public private(set) var audioMeterState: AudioMeterState = .noDevice
+    @Published public private(set) var detectedMicSource: DetectedMicSource = .unknown
     @Published public private(set) var audioLevel: Double = 0
     @Published public private(set) var audioPeak: Double = 0
     @Published public private(set) var audioDecibels: Float = -60
@@ -769,13 +770,19 @@ public final class OsmoControllerViewModel: ObservableObject {
     }
 
     private func configureAudioMonitor() {
-        audioMonitor.onUpdate = { [weak self] level, peak, db, state in
+        audioMonitor.onUpdate = { [weak self] level, peak, db, state, source in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.audioLevel = level
                 self.audioPeak = peak
                 self.audioDecibels = db
                 self.audioMeterState = state
+                self.detectedMicSource = source
+            }
+        }
+        audioMonitor.onLog = { [weak self] msg in
+            Task { @MainActor [weak self] in
+                self?.appendLog(msg)
             }
         }
         audioMonitor.requestPermissionAndStart()

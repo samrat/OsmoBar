@@ -1,8 +1,10 @@
 import SwiftUI
+import OsmoCore
 
-/// Compact real-time audio level meter for the Osmo Pocket 3 USB audio input.
+/// Compact real-time audio level meter & DJI Mic source indicator.
 struct AudioLevelBarView: View {
     let state: AudioMeterState
+    let micSource: DetectedMicSource
     let level: Double
     let peak: Double
     let decibels: Float
@@ -24,10 +26,13 @@ struct AudioLevelBarView: View {
             switch state {
             case .active(let deviceName):
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(deviceName)
+                    HStack(spacing: 6) {
+                        Text(displayName(deviceName: deviceName))
                             .font(.system(size: 10.5, weight: .medium))
                             .lineLimit(1)
+
+                        sourceBadge
+
                         Spacer()
                         Text(decibels <= -58 ? "−∞ dB" : String(format: "%.0f dB", decibels))
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
@@ -67,6 +72,46 @@ struct AudioLevelBarView: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func displayName(deviceName: String) -> String {
+        switch micSource {
+        case .djiMicWireless: return "DJI Mic"
+        case .djiMicUSBReceiver(let name): return name
+        case .cameraMic: return "Camera's Mic"
+        case .unknown: return deviceName
+        }
+    }
+
+    @ViewBuilder
+    private var sourceBadge: some View {
+        switch micSource {
+        case .djiMicWireless, .djiMicUSBReceiver:
+            HStack(spacing: 3) {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 5, height: 5)
+                Text(micSource == .djiMicWireless ? "Wireless" : "USB")
+                    .font(.system(size: 9.5, weight: .semibold))
+            }
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Color.green.opacity(0.16), in: Capsule())
+            .foregroundStyle(.green)
+
+        case .cameraMic:
+            Text("Built-in")
+                .font(.system(size: 9.5, weight: .medium))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Color.secondary.opacity(0.14), in: Capsule())
+                .foregroundStyle(.secondary)
+
+        case .unknown:
+            Text("Speak to detect")
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
+        }
     }
 
     private var meterTrack: some View {
@@ -109,9 +154,21 @@ struct AudioLevelBarView: View {
     private var micIcon: String {
         if !isEnabled { return "mic.slash" }
         switch state {
-        case .active: return level > 0.06 ? "mic.fill" : "mic"
-        case .permissionDenied: return "mic.slash.fill"
-        default: return "mic"
+        case .active:
+            switch micSource {
+            case .djiMicWireless:
+                return "mic.fill"
+            case .djiMicUSBReceiver:
+                return "mic.circle.fill"
+            case .cameraMic:
+                return "web.camera.fill"
+            case .unknown:
+                return "waveform"
+            }
+        case .permissionDenied:
+            return "mic.slash.fill"
+        default:
+            return "mic"
         }
     }
 
@@ -120,7 +177,14 @@ struct AudioLevelBarView: View {
         switch state {
         case .active:
             if decibels > -3 { return .red }
-            return level > 0.06 ? .green : .secondary
+            switch micSource {
+            case .djiMicWireless, .djiMicUSBReceiver:
+                return .green
+            case .cameraMic:
+                return level > 0.06 ? .primary : .secondary
+            case .unknown:
+                return .secondary
+            }
         case .permissionDenied:
             return .orange
         default:
