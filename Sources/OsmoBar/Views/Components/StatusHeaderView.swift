@@ -32,9 +32,9 @@ struct StatusHeaderView: View {
             } label: {
                 HStack(spacing: 5) {
                     Circle()
-                        .fill(vm.uvcConnected ? Color.green : Color.orange)
+                        .fill(vm.uvcConnected ? Color.green : (vm.selectedCameraID != nil ? Color.orange : Color.secondary.opacity(0.45)))
                         .frame(width: 7, height: 7)
-                    Text(vm.selectedCamera?.name ?? "No Camera")
+                    Text(vm.selectedCamera?.name ?? "No Osmo")
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
                     Image(systemName: "chevron.down")

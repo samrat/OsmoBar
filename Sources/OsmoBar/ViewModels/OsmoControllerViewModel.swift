@@ -155,7 +155,8 @@ public final class OsmoControllerViewModel: ObservableObject {
             return
         }
 
-        if let preferred = cameras.first(where: \.isDJI) ?? cameras.first {
+        // Only auto-select a connected DJI Osmo camera — never fall back to the Mac's built-in FaceTime camera.
+        if let preferred = cameras.first(where: \.isDJI) {
             selectedCameraID = preferred.id
             cameraSession.setCamera(uniqueID: preferred.id)
             if autoConnect {
@@ -164,6 +165,9 @@ public final class OsmoControllerViewModel: ObservableObject {
         } else {
             selectedCameraID = nil
             cameraSession.setCamera(uniqueID: nil)
+            if faceFollowEnabled {
+                setFaceFollowEnabled(false)
+            }
             disconnectUVC()
         }
     }

@@ -22,7 +22,7 @@ struct CameraPreviewView: View {
                     Image(systemName: "video.slash")
                         .font(.system(size: 20))
                         .foregroundStyle(.secondary)
-                    Text("No Webcam Connected")
+                    Text("Osmo Not Connected")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
@@ -74,7 +74,7 @@ struct CameraPreviewView: View {
         )
         .onAppear {
             authStatus = AVCaptureDevice.authorizationStatus(for: .video)
-            if authStatus == .notDetermined {
+            if hasCamera && authStatus == .notDetermined {
                 requestCameraPermission()
             }
         }
@@ -156,20 +156,64 @@ final class PreviewHostView: NSView {
     private let sessionManager: CameraSessionManager
     private let previewLayer = AVCaptureVideoPreviewLayer()
     private var detached = false
+    private var isRegisteredConsumer = false
+    private var isMirrored = true
+    private var visibilityObservation: NSKeyValueObservation?
+    private var windowObservers: [NSObjectProtocol] = []
+    private var sessionStartObserver: NSObjectProtocol?
 
     init(sessionManager: CameraSessionManager) {
         self.sessionManager = sessionManager
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
-        previewLayer.session = sessionManager.session
         previewLayer.videoGravity = .resizeAspectFill
         layer?.addSublayer(previewLayer)
-        sessionManager.registerPreviewConsumer()
+
+        sessionStartObserver = NotificationCenter.default.addObserver(
+            forName: .AVCaptureSessionDidStartRunning,
+            object: sessionManager.session,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.applyMirroring()
+            }
+        }
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        clearWindowObservers()
+
+        if let win = window {
+            visibilityObservation = win.observe(\.isVisible, options: [.initial, .new]) { [weak self] _, _ in
+                Task { @MainActor [weak self] in
+                    self?.updateConsumerRegistration()
+                }
+            }
+
+            let nc = NotificationCenter.default
+            let names: [Notification.Name] = [
+                NSWindow.willCloseNotification,
+                NSWindow.didMiniaturizeNotification,
+                NSWindow.didDeminiaturizeNotification,
+                NSWindow.didChangeOcclusionStateNotification
+            ]
+            for name in names {
+                let obs = nc.addObserver(forName: name, object: win, queue: .main) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        self?.updateConsumerRegistration()
+                    }
+                }
+                windowObservers.append(obs)
+            }
+        }
+
+        updateConsumerRegistration()
     }
 
     override func layout() {
@@ -178,19 +222,56 @@ final class PreviewHostView: NSView {
         CATransaction.setDisableActions(true)
         previewLayer.frame = bounds
         CATransaction.commit()
+        applyMirroring()
     }
 
     func setMirrored(_ mirrored: Bool) {
-        if let conn = previewLayer.connection, conn.isVideoMirroringSupported {
-            conn.automaticallyAdjustsVideoMirroring = false
-            conn.isVideoMirrored = mirrored
-        }
+        isMirrored = mirrored
+        applyMirroring()
     }
 
     func detach() {
         guard !detached else { return }
         detached = true
-        previewLayer.session = nil
-        sessionManager.unregisterPreviewConsumer()
+        clearWindowObservers()
+        if let obs = sessionStartObserver {
+            NotificationCenter.default.removeObserver(obs)
+            sessionStartObserver = nil
+        }
+        updateConsumerRegistration()
+    }
+
+    private func applyMirroring() {
+        if let conn = previewLayer.connection, conn.isVideoMirroringSupported {
+            conn.automaticallyAdjustsVideoMirroring = false
+            conn.isVideoMirrored = isMirrored
+        }
+    }
+
+    private func clearWindowObservers() {
+        visibilityObservation?.invalidate()
+        visibilityObservation = nil
+        for obs in windowObservers {
+            NotificationCenter.default.removeObserver(obs)
+        }
+        windowObservers.removeAll()
+    }
+
+    private func updateConsumerRegistration() {
+        let shouldConsume = !detached
+            && window != nil
+            && (window?.isVisible == true)
+            && (window?.isMiniaturized == false)
+
+        if shouldConsume && !isRegisteredConsumer {
+            isRegisteredConsumer = true
+            previewLayer.session = sessionManager.session
+            sessionManager.registerPreviewConsumer()
+            applyMirroring()
+        } else if !shouldConsume && isRegisteredConsumer {
+            isRegisteredConsumer = false
+            previewLayer.session = nil
+            sessionManager.unregisterPreviewConsumer()
+        }
     }
 }

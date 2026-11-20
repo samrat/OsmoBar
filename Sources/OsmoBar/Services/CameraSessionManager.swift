@@ -17,6 +17,7 @@ public final class CameraSessionManager: NSObject, @unchecked Sendable {
 
     private let videoOutput = AVCaptureVideoDataOutput()
     private var activeCameraID: String?
+    private var configuredInputCameraID: String?
     private var previewConsumers = 0
     private var faceTrackingActive = false
     private var isProcessingFrame = false
@@ -37,23 +38,6 @@ public final class CameraSessionManager: NSObject, @unchecked Sendable {
             guard let self else { return }
             guard uniqueID != self.activeCameraID else { return }
             self.activeCameraID = uniqueID
-
-            self.session.beginConfiguration()
-            self.session.sessionPreset = .hd1280x720
-            for input in self.session.inputs {
-                self.session.removeInput(input)
-            }
-            if let uniqueID,
-               let device = AVCaptureDevice(uniqueID: uniqueID),
-               let input = try? AVCaptureDeviceInput(device: device),
-               self.session.canAddInput(input) {
-                self.session.addInput(input)
-            }
-            if !self.session.outputs.contains(self.videoOutput),
-               self.session.canAddOutput(self.videoOutput) {
-                self.session.addOutput(self.videoOutput)
-            }
-            self.session.commitConfiguration()
             self.updateRunningStateLocked()
         }
     }
@@ -92,11 +76,43 @@ public final class CameraSessionManager: NSObject, @unchecked Sendable {
         let wantsTracking = faceTrackingActive
         stateLock.unlock()
 
-        let shouldRun = (previewConsumers > 0 || wantsTracking) && !session.inputs.isEmpty
-        if shouldRun && !session.isRunning {
-            session.startRunning()
-        } else if !shouldRun && session.isRunning {
-            session.stopRunning()
+        let shouldRun = (previewConsumers > 0 || wantsTracking) && activeCameraID != nil
+
+        if shouldRun, let targetID = activeCameraID {
+            if configuredInputCameraID != targetID || session.inputs.isEmpty {
+                session.beginConfiguration()
+                session.sessionPreset = .hd1280x720
+                for input in session.inputs {
+                    session.removeInput(input)
+                }
+                configuredInputCameraID = nil
+                if let device = AVCaptureDevice(uniqueID: targetID),
+                   let input = try? AVCaptureDeviceInput(device: device),
+                   session.canAddInput(input) {
+                    session.addInput(input)
+                    configuredInputCameraID = targetID
+                }
+                if !session.outputs.contains(videoOutput),
+                   session.canAddOutput(videoOutput) {
+                    session.addOutput(videoOutput)
+                }
+                session.commitConfiguration()
+            }
+            if !session.inputs.isEmpty && !session.isRunning {
+                session.startRunning()
+            }
+        } else {
+            if session.isRunning {
+                session.stopRunning()
+            }
+            if !session.inputs.isEmpty {
+                session.beginConfiguration()
+                for input in session.inputs {
+                    session.removeInput(input)
+                }
+                configuredInputCameraID = nil
+                session.commitConfiguration()
+            }
         }
     }
 }
