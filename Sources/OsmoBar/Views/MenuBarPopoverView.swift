@@ -3,7 +3,7 @@ import OsmoCore
 
 struct MenuBarPopoverView: View {
     @ObservedObject var vm: OsmoControllerViewModel
-    @Environment(\.openWindow) private var openWindow
+    var onOpenStudioWindow: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 11) {
@@ -211,18 +211,43 @@ struct MenuBarPopoverView: View {
             Divider()
 
             // Footer
-            HStack {
+            HStack(spacing: 6) {
                 Button {
-                    openWindow(id: "control-window")
-                    NSApp.activate(ignoringOtherApps: true)
+                    onOpenStudioWindow()
                 } label: {
-                    Label("Open Studio Window", systemImage: "macwindow")
-                        .font(.system(size: 12, weight: .medium))
+                    Label("Studio Window", systemImage: "macwindow")
+                        .font(.system(size: 11.5, weight: .medium))
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
 
                 Spacer()
+
+                Button {
+                    vm.hideMenuBarWhenDisconnected.toggle()
+                } label: {
+                    Image(systemName: vm.hideMenuBarWhenDisconnected ? "eye.slash" : "eye")
+                        .font(.system(size: 11))
+                        .foregroundStyle(vm.hideMenuBarWhenDisconnected ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(
+                    vm.hideMenuBarWhenDisconnected
+                        ? "Menu bar icon: Only when Osmo is connected (click to always show)"
+                        : "Menu bar icon: Always visible (click to auto-hide when disconnected)"
+                )
+
+                Button {
+                    vm.setLaunchAtLogin(!vm.launchAtLogin)
+                } label: {
+                    Image(systemName: vm.launchAtLogin ? "sunrise.fill" : "sunrise")
+                        .font(.system(size: 11))
+                        .foregroundStyle(vm.launchAtLogin ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(vm.launchAtLogin ? "Start at Login: On (click to disable)" : "Start at Login: Off (click to enable)")
 
                 Button {
                     NSApp.terminate(nil)
@@ -233,6 +258,9 @@ struct MenuBarPopoverView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help("Quit OsmoBar")
+            }
+            .onAppear {
+                vm.refreshLaunchAtLoginStatus()
             }
         }
         .padding(14)

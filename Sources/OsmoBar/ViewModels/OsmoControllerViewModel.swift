@@ -2,6 +2,7 @@ import Foundation
 import Combine
 @preconcurrency import AVFoundation
 import AppKit
+import ServiceManagement
 import OsmoCore
 
 @MainActor
@@ -71,7 +72,16 @@ public final class OsmoControllerViewModel: ObservableObject {
     @Published public var mirrorPreview: Bool = true
     @Published public var showFramingGrid: Bool = false
     @Published public var alwaysOnTop: Bool = false
+    @Published public var hideMenuBarWhenDisconnected: Bool = true {
+        didSet {
+            UserDefaults.standard.set(hideMenuBarWhenDisconnected, forKey: Self.hideMenuBarKey)
+        }
+    }
+    @Published public private(set) var launchAtLogin: Bool = false
+    @Published public private(set) var launchAtLoginError: String?
     @Published public private(set) var logs: [DiagnosticLogEntry] = []
+
+    private static let hideMenuBarKey = "OsmoBar.hideMenuBarWhenDisconnected"
 
     // MARK: - Transports & Shared Capture
     public let cameraSession = CameraSessionManager()
@@ -85,17 +95,29 @@ public final class OsmoControllerViewModel: ObservableObject {
     private var presetMoveTask: Task<Void, Never>?
     private var lastFaceTrackCommandTime: TimeInterval = 0
     nonisolated(unsafe) private var deviceObservers: [NSObjectProtocol] = []
+    private var videoDiscoverySession: AVCaptureDevice.DiscoverySession?
+    private var audioDiscoverySession: AVCaptureDevice.DiscoverySession?
+    nonisolated(unsafe) private var videoDevicesObservation: NSKeyValueObservation?
+    nonisolated(unsafe) private var audioDevicesObservation: NSKeyValueObservation?
 
     public init() {
+        if let saved = UserDefaults.standard.object(forKey: Self.hideMenuBarKey) as? Bool {
+            hideMenuBarWhenDisconnected = saved
+        } else {
+            hideMenuBarWhenDisconnected = true
+        }
         presets = GimbalPresetStore.load()
         configureTransports()
         configureFaceTracking()
         configureAudioMonitor()
+        configureLaunchAtLogin()
         registerDeviceNotifications()
         refreshCameras(autoConnect: true)
     }
 
     deinit {
+        videoDevicesObservation?.invalidate()
+        audioDevicesObservation?.invalidate()
         for obs in deviceObservers {
             NotificationCenter.default.removeObserver(obs)
         }
@@ -131,6 +153,14 @@ public final class OsmoControllerViewModel: ObservableObject {
 
     public var selectedCamera: DiscoveredCamera? {
         cameras.first { $0.id == selectedCameraID }
+    }
+
+    public var isAnyTransportConnected: Bool {
+        uvcConnected || udpState.isConnected || bleState.isConnected || selectedCameraID != nil
+    }
+
+    public var isMenuBarIconVisible: Bool {
+        !hideMenuBarWhenDisconnected || isAnyTransportConnected
     }
 
     public var zoomMultiplierDisplay: String {
@@ -231,6 +261,45 @@ public final class OsmoControllerViewModel: ObservableObject {
 
     public func requestMicrophonePermission() {
         audioMonitor.requestPermissionAndStart()
+    }
+
+    // MARK: - Launch at Login
+
+    public func refreshLaunchAtLoginStatus() {
+        launchAtLogin = (SMAppService.mainApp.status == .enabled)
+    }
+
+    public func setLaunchAtLogin(_ enabled: Bool) {
+        launchAtLoginError = nil
+        do {
+            if enabled {
+                if SMAppService.mainApp.status != .enabled {
+                    try SMAppService.mainApp.register()
+                }
+                appendLog("Login Item: enabled Start at Login")
+            } else {
+                if SMAppService.mainApp.status == .enabled {
+                    try SMAppService.mainApp.unregister()
+                }
+                appendLog("Login Item: disabled Start at Login")
+            }
+        } catch {
+            launchAtLoginError = error.localizedDescription
+            appendLog("Login Item error: \(error.localizedDescription)")
+        }
+        refreshLaunchAtLoginStatus()
+    }
+
+    private func configureLaunchAtLogin() {
+        refreshLaunchAtLoginStatus()
+        let key = "OsmoBar.didInitialLaunchAtLoginSetup"
+        if !UserDefaults.standard.bool(forKey: key),
+           Bundle.main.bundleURL.path.hasPrefix("/Applications/") {
+            UserDefaults.standard.set(true, forKey: key)
+            if SMAppService.mainApp.status != .enabled {
+                setLaunchAtLogin(true)
+            }
+        }
     }
 
     public var isFlippedUSB: Bool {
@@ -793,6 +862,33 @@ public final class OsmoControllerViewModel: ObservableObject {
     }
 
     private func registerDeviceNotifications() {
+        // Keep persistent DiscoverySessions alive so macOS CoreMediaIO delivers
+        // USB connect/disconnect updates immediately even when capture is stopped.
+        let videoSession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.external, .builtInWideAngleCamera, .continuityCamera],
+            mediaType: .video,
+            position: .unspecified
+        )
+        videoDiscoverySession = videoSession
+        videoDevicesObservation = videoSession.observe(\.devices, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                self?.refreshCameras(autoConnect: true)
+                self?.audioMonitor.refresh()
+            }
+        }
+
+        let audioSession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.microphone, .external],
+            mediaType: .audio,
+            position: .unspecified
+        )
+        audioDiscoverySession = audioSession
+        audioDevicesObservation = audioSession.observe(\.devices, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                self?.audioMonitor.refresh()
+            }
+        }
+
         let nc = NotificationCenter.default
         let c1 = nc.addObserver(forName: .AVCaptureDeviceWasConnected, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in

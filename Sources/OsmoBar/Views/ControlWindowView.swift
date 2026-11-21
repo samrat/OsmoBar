@@ -710,6 +710,54 @@ struct ControlWindowView: View {
             .padding(14)
             .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
 
+            // App Startup & Menu Bar Card
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Only Show Menu Bar Icon When Connected")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Auto-hide OsmoBar from the menu bar when your Pocket 3 is unplugged. Open OsmoBar from Spotlight anytime to show this window.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $vm.hideMenuBarWhenDisconnected)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Start OsmoBar at Login")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Automatically launch OsmoBar in the menu bar when you sign in.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { vm.launchAtLogin },
+                        set: { vm.setLaunchAtLogin($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
+                if let err = vm.launchAtLoginError {
+                    Text(err)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.orange)
+                }
+            }
+            .padding(14)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+            .onAppear {
+                vm.refreshLaunchAtLoginStatus()
+            }
+
             // Protocol Log
             VStack(alignment: .leading, spacing: 8) {
                 HStack {

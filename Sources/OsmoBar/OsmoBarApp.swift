@@ -1,38 +1,134 @@
 import SwiftUI
 import AppKit
+import Combine
 import OsmoCore
 
-@main
-struct OsmoBarApp: App {
-    @StateObject private var viewModel = OsmoControllerViewModel()
+@MainActor
+final class StudioWindowController {
+    static let shared = StudioWindowController()
+    private var window: NSWindow?
 
-    var body: some Scene {
-        MenuBarExtra {
-            MenuBarPopoverView(vm: viewModel)
-        } label: {
-            HStack(spacing: 4) {
-                Image(nsImage: menuBarImage)
-                if let battery = viewModel.battery {
-                    Text("\(battery.percent)%")
-                        .font(.system(size: 11, design: .monospaced))
+    func show(viewModel: OsmoControllerViewModel) {
+        if let existing = window {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let hosting = NSHostingController(rootView: ControlWindowView(vm: viewModel))
+        let win = NSWindow(contentViewController: hosting)
+        win.title = "OsmoBar"
+        win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        win.setContentSize(NSSize(width: 660, height: 740))
+        win.minSize = NSSize(width: 560, height: 480)
+        win.isReleasedWhenClosed = false
+        win.center()
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window = win
+    }
+}
+
+@MainActor
+final class OsmoBarAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+    let viewModel = OsmoControllerViewModel()
+    private var statusItem: NSStatusItem?
+    private let popover = NSPopover()
+    private var cancellables = Set<AnyCancellable>()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
+        let hosting = NSHostingController(
+            rootView: MenuBarPopoverView(
+                vm: viewModel,
+                onOpenStudioWindow: { [weak self] in
+                    guard let self else { return }
+                    self.popover.performClose(nil)
+                    StudioWindowController.shared.show(viewModel: self.viewModel)
                 }
+            )
+        )
+        hosting.sizingOptions = .preferredContentSize
+        popover.contentViewController = hosting
+
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = "com.osmobar.statusItem"
+        if let button = item.button {
+            button.target = self
+            button.action = #selector(togglePopover(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.imagePosition = .imageLeading
+        }
+        statusItem = item
+
+        // React immediately whenever connection state, mic source, battery, or auto-hide preference changes.
+        Publishers.CombineLatest4(
+            viewModel.$uvcConnected,
+            viewModel.$selectedCameraID,
+            viewModel.$bleState,
+            viewModel.$udpState
+        )
+        .combineLatest(
+            Publishers.CombineLatest3(
+                viewModel.$hideMenuBarWhenDisconnected,
+                viewModel.$detectedMicSource,
+                viewModel.$battery
+            )
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.syncStatusItem()
+        }
+        .store(in: &cancellables)
+
+        syncStatusItem()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            StudioWindowController.shared.show(viewModel: viewModel)
+        }
+        return true
+    }
+
+    @objc private func togglePopover(_ sender: AnyObject?) {
+        guard let button = statusItem?.button else { return }
+        if popover.isShown {
+            popover.performClose(sender)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeKey()
+        }
+    }
+
+    private func syncStatusItem() {
+        guard let item = statusItem else { return }
+
+        let shouldShow = viewModel.isMenuBarIconVisible
+        if item.isVisible != shouldShow {
+            if !shouldShow && popover.isShown {
+                popover.performClose(nil)
             }
+            item.isVisible = shouldShow
         }
-        .menuBarExtraStyle(.window)
 
-        Window("OsmoBar", id: "control-window") {
-            ControlWindowView(vm: viewModel)
+        guard let button = item.button else { return }
+        button.image = currentMenuBarImage()
+        if let battery = viewModel.battery {
+            button.title = " \(battery.percent)%"
+            button.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        } else {
+            button.title = ""
         }
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 660, height: 740)
     }
 
-    private var isConnected: Bool {
-        viewModel.uvcConnected || viewModel.udpState.isConnected || viewModel.bleState.isConnected
-    }
-
-    private var menuBarImage: NSImage {
-        if !isConnected {
+    private func currentMenuBarImage() -> NSImage {
+        if !viewModel.isAnyTransportConnected {
             return MenuBarIconFactory.singleSymbol("web.camera")
         }
         switch viewModel.detectedMicSource {
@@ -40,6 +136,17 @@ struct OsmoBarApp: App {
             return MenuBarIconFactory.cameraAndMicIcon
         case .cameraMic, .unknown:
             return MenuBarIconFactory.singleSymbol("web.camera.fill")
+        }
+    }
+}
+
+@main
+struct OsmoBarApp: App {
+    @NSApplicationDelegateAdaptor(OsmoBarAppDelegate.self) private var appDelegate
+
+    var body: some Scene {
+        Settings {
+            EmptyView()
         }
     }
 }
